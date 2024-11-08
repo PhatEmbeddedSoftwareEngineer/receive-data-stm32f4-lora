@@ -21,6 +21,10 @@
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
+#include <stdio.h>
+#include "sx1278.hpp"
+#include "gpio.h"
+#include "spi.h"
 
 /* USER CODE END Includes */
 
@@ -54,12 +58,21 @@ static void MX_GPIO_Init(void);
 static void MX_SPI1_Init(void);
 static void MX_USART1_UART_Init(void);
 /* USER CODE BEGIN PFP */
-
+#define PUTCHAR_PROTOTYPE int __io_putchar(int ch)
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
+SX1278_hw_t SX1278_hw;
+SX1278_t SX1278;
 
+int master;
+int ret;
+
+char buffer[512];
+
+int message;
+int message_length;
 /* USER CODE END 0 */
 
 /**
@@ -94,13 +107,42 @@ int main(void)
   MX_SPI1_Init();
   MX_USART1_UART_Init();
   /* USER CODE BEGIN 2 */
+  init_gpio();
+  init_spi1();
+  printf("Mode: Slave\r\n");
+  //initialize LoRa module
+  SX1278_hw.dio0.port = DIO0_GPIO_Port;
+  SX1278_hw.dio0.pin = DIO0_Pin;
+  SX1278_hw.nss.port = NSS_GPIO_Port;
+  SX1278_hw.nss.pin = NSS_Pin;
+  SX1278_hw.reset.port = RESET_GPIO_Port;
+  SX1278_hw.reset.pin = RESET_Pin;
+  SX1278_hw.spi = &hspi1;
 
+  SX1278.hw = &SX1278_hw;
+
+  printf("Configuring LoRa module\r\n");
+  SX1278_init(&SX1278, 434000000, SX1278_POWER_17DBM, SX1278_LORA_SF_7,
+  		  	  SX1278_LORA_BW_125KHZ, SX1278_LORA_CR_4_5, SX1278_LORA_CRC_EN, 10);
+  printf("Done configuring LoRaModule\r\n");
+  ret = SX1278_LoRaEntryRx(&SX1278, 16, 2000);
   /* USER CODE END 2 */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
   while (1)
   {
+	  printf("Slave ...\r\n");
+	  HAL_Delay(800);
+	  printf("Receiving package...\r\n");
+
+	  ret = SX1278_LoRaRxPacket(&SX1278);
+	  printf("Received: %d\r\n", ret);
+	  if (ret > 0) {
+	  	 SX1278_read(&SX1278, (uint8_t*) buffer, ret);
+	  	 printf("Content (%d): %s\r\n", ret, buffer);
+	  }
+	  printf("Package received ...\r\n");
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
@@ -238,13 +280,21 @@ static void MX_GPIO_Init(void)
   /* GPIO Ports Clock Enable */
   __HAL_RCC_GPIOH_CLK_ENABLE();
   __HAL_RCC_GPIOA_CLK_ENABLE();
+  __HAL_RCC_GPIOC_CLK_ENABLE();
 
 /* USER CODE BEGIN MX_GPIO_Init_2 */
 /* USER CODE END MX_GPIO_Init_2 */
 }
 
 /* USER CODE BEGIN 4 */
+PUTCHAR_PROTOTYPE
+{
+  /* Place your implementation of fputc here */
+  /* e.g. write a character to the USART1 and Loop until the end of transmission */
+  HAL_UART_Transmit(&huart1, (uint8_t *)&ch, 1, 0xFFFF);
 
+  return ch;
+}
 /* USER CODE END 4 */
 
 /**
